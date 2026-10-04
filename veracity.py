@@ -134,7 +134,7 @@ async def execute(model: str, website: str, plan: Path, output: Path, workers: i
                                       f"Source repository: {repository}. Upload fixtures: {files}. {instruction}",
                                       llm=llm, browser=browser, output_model_schema=Finding, sensitive_data=credentials,
                                       file_system_path=str(Path(directory) / test.code), available_file_paths=files,
-                                      flash_mode=False)
+                                      flash_mode=False, enable_signal_handler=False)
                         finding = Finding.model_validate((await agent.run(max_steps=max_steps)).structured_output)
                         attachments = []
                         if finding.status != "skipped":
