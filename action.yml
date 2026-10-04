@@ -1,0 +1,64 @@
+name: Veracity UAT
+description: Run a UAT plan against a website and upload results and screenshots.
+inputs:
+  url:
+    description: Website URL reachable from the runner.
+    required: true
+  plan:
+    description: Path to the UAT plan in the checked-out repository.
+    default: uat.json
+  model:
+    description: OpenAI model name.
+    default: openai:gpt-5.6-luna
+  workers:
+    description: Number of concurrent test groups.
+    default: '4'
+  secrets:
+    description: Environment variable names to pass to the agent, one per line.
+    default: ''
+  instruction:
+    description: Additional instructions for the tests.
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v6
+      with:
+        python-version: '3.12'
+    - name: Install Veracity and Chromium
+      shell: bash
+      env:
+        VERACITY_PATH: ${{ github.action_path }}
+      run: |
+        uv sync --project "$VERACITY_PATH" --locked --no-dev
+        "$VERACITY_PATH/.venv/bin/browser-use" install
+    - name: Run UAT
+      shell: bash
+      env:
+        VERACITY_PATH: ${{ github.action_path }}
+        UAT_URL: ${{ inputs.url }}
+        UAT_PLAN: ${{ inputs.plan }}
+        UAT_MODEL: ${{ inputs.model }}
+        UAT_WORKERS: ${{ inputs.workers }}
+        UAT_SECRETS: ${{ inputs.secrets }}
+        UAT_INSTRUCTION: ${{ inputs.instruction }}
+      run: |
+        args=()
+        while IFS= read -r name; do
+          if [[ -n "$name" ]]; then
+            args+=(--secret "$name")
+          fi
+        done <<< "$UAT_SECRETS"
+        "$VERACITY_PATH/.venv/bin/python" "$VERACITY_PATH/veracity.py" \
+          --model "$UAT_MODEL" run "$UAT_URL" "$UAT_PLAN" \
+          --output uat-output.json --repository "$GITHUB_WORKSPACE" \
+          --workers "$UAT_WORKERS" --instruction "$UAT_INSTRUCTION" "${args[@]}"
+        jq -e '.results | length > 0 and all(.[]; .status == "succeeded")' uat-output.json
+    - name: Upload UAT results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: veracity-uat
+        path: |
+          uat-output.json
+          screenshots/
