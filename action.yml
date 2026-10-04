@@ -12,7 +12,7 @@ inputs:
     default: openai:gpt-5.6-luna
   workers:
     description: Number of concurrent test groups.
-    default: '4'
+    default: '1'
   secrets:
     description: Environment variable names to pass to the agent, one per line.
     default: ''

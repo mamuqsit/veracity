@@ -31,7 +31,7 @@ Set the repository variable `UAT_URL` and secret `OPENAI_API_KEY` under **Settin
 
 The website must be reachable from the Ubuntu runner. Download `uat-output.html`, `uat-output.json`, and screenshots from the run's `veracity-uat` artifact. Open the HTML report in a browser. It includes all recorded results and embedded screenshots in one file. The action generates the report even if tests fail. Failed or skipped tests fail the job.
 
-Optional inputs are `plan` (default `uat.json`), `model` (default `openai:gpt-5.6-luna`), `workers` (default `4`), `instruction`, and `secrets`. For login credentials, pass environment variable names, one per line:
+Optional inputs are `plan` (default `uat.json`), `model` (default `openai:gpt-5.6-luna`), `workers` (default `1`), `instruction`, and `secrets`. For login credentials, pass environment variable names, one per line:
 
 ```yaml
       - uses: mamuqsit/veracity@main
@@ -74,7 +74,7 @@ uv run veracity.py --model openai:gpt-5.6-luna run \
   --output uat-output.json \
   --repository https://github.com/A4i-tech/Shiksha-Copilot \
   --branch a4i/staging \
-  --workers 4 \
+  --workers 1 \
   --secret SU_PHONE \
   --secret SU_PIN \
   --instruction "Superuser account credential: SU_PHONE (PIN: SU_PIN). Create disposable teacher, power teacher, and admin user accounts and test flows. shiksha-backend is hosted on https://localhost:8080/api."

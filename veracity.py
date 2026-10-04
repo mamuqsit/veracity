@@ -148,7 +148,7 @@ async def execute(model: str, website: str, plan: Path, output: Path, workers: i
 
 @app.command()
 def run(ctx: typer.Context, website: str, plan: Path, output: Annotated[Path, typer.Option()],
-        repository: Annotated[str, typer.Option()], branch: str = "", workers: int = 4, resume: bool = False,
+        repository: Annotated[str, typer.Option()], branch: str = "", workers: int = 1, resume: bool = False,
         secret: Annotated[list[str] | None, typer.Option()] = None, instruction: str = ""):
     if not ctx.obj:
         raise typer.BadParameter("--model is required")
