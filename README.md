@@ -51,6 +51,17 @@ Optional inputs are `plan` (default `uat.json`), `model` (default `openai:gpt-5.
 
 For an OpenAI-compatible endpoint, also set `OPENAI_BASE_URL` in `env`.
 
+Each test uses normal reasoning and is limited to 30 agent steps. Set `max-steps` to change the limit. If the agent does not return a valid result, the run fails. The action provides `profile.png` for image uploads. Use `fixtures` to add file paths from your repository, one per line:
+
+```yaml
+        with:
+          url: ${{ vars.UAT_URL }}
+          fixtures: |
+            tests/fixtures/teachers.xlsx
+```
+
+Keep each UAT case focused on one behavior. Test uploads, removals, validation, and saved changes separately.
+
 ## Local CLI
 
 For local use, install Python 3.12, uv, and Git. Clone this repository, then run `uv sync` and `uv run browser-use install`. Set `OPENAI_API_KEY` before you generate or run tests.
@@ -82,6 +93,7 @@ uv run veracity.py --model openai:gpt-5.6-luna run \
 
 Tests in one group run in order with one browser profile. Groups run concurrently. Each result and its screenshots are written immediately after the test.
 Use `--resume` to run only tests missing from an existing output file.
+Use `--fixture fixtures/profile.png` to provide an upload file locally. `--fixture` is repeatable. Use `--max-steps` to change the default limit of 30 steps per test.
 
 ### HTML report
 

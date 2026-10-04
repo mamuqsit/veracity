@@ -74,7 +74,9 @@ def audit(ctx: typer.Context, repository: str, output: Path, format: str, branch
             thread = codex.thread_start(cwd=directory, model=ctx.obj, model_provider="veracity", sandbox=Sandbox.read_only)
             turn = thread.turn(
                 "Audit user-facing functionality. Produce ordered UAT tests with unique code, group, page, "
-                f"action and expected fields. Do not edit files. {instruction}", output_schema=Plan.model_json_schema())
+                "action and expected fields. Each test must check one behavior. Split upload, removal, validation, "
+                "and save persistence into separate tests. State required fixtures in the action field. "
+                f"Do not edit files. {instruction}", output_schema=Plan.model_json_schema())
             final = fallback = None
             status.update("Auditing repository...")
             for event in turn.stream():
@@ -94,12 +96,17 @@ def audit(ctx: typer.Context, repository: str, output: Path, format: str, branch
             save(output, Plan.model_validate_json(final or fallback).model_dump())
 
 async def execute(model: str, website: str, plan: Path, output: Path, workers: int, resume: bool,
-                  secrets: list[str], instruction: str, repository: Path):
+                  secrets: list[str], instruction: str, repository: Path, fixtures: list[Path], max_steps: int):
     tests = Plan.model_validate_json(plan.read_text()).tests
     results = [Result.model_validate(r) for r in json.loads(output.read_text())["results"]] if resume else []
     done = {result.code for result in results}
-    if workers < 1 or len(done) != len(results) or not done <= {test.code for test in tests}:
-        raise ValueError("invalid workers or resume results")
+    if workers < 1 or max_steps < 1 or len(done) != len(results) or not done <= {test.code for test in tests}:
+        raise ValueError("invalid workers, max_steps, or resume results")
+    files = []
+    for fixture in fixtures:
+        if not fixture.is_file():
+            raise FileNotFoundError(fixture)
+        files.append(str(fixture.resolve()))
     credentials = {name: os.environ[name] for name in secrets}
     if not resume:
         save(output, {"results": []})
@@ -121,10 +128,14 @@ async def execute(model: str, website: str, plan: Path, output: Path, workers: i
                 try:
                     await browser.start()
                     for test in items:
-                        agent = Agent(task=f"Test {website}: {test.model_dump_json()}. Report status and note. {instruction}",
+                        agent = Agent(task=f"Test {website}: {test.model_dump_json()}. Report status and note. "
+                                      "If an interaction has no effect twice, inspect the control and use a different "
+                                      "interaction. If it remains blocked, report skipped with the observed cause. "
+                                      f"Source repository: {repository}. Upload fixtures: {files}. {instruction}",
                                       llm=llm, browser=browser, output_model_schema=Finding, sensitive_data=credentials,
-                                      file_system_path=str(repository.resolve()), flash_mode=True)
-                        finding = Finding.model_validate((await agent.run()).structured_output)
+                                      file_system_path=str(Path(directory) / test.code), available_file_paths=files,
+                                      flash_mode=False)
+                        finding = Finding.model_validate((await agent.run(max_steps=max_steps)).structured_output)
                         attachments = []
                         if finding.status != "skipped":
                             image = base64.b64decode(await (await browser.must_get_current_page()).screenshot(), validate=True)
@@ -149,13 +160,14 @@ async def execute(model: str, website: str, plan: Path, output: Path, workers: i
 @app.command()
 def run(ctx: typer.Context, website: str, plan: Path, output: Annotated[Path, typer.Option()],
         repository: Annotated[str, typer.Option()], branch: str = "", workers: int = 1, resume: bool = False,
-        secret: Annotated[list[str] | None, typer.Option()] = None, instruction: str = ""):
+        secret: Annotated[list[str] | None, typer.Option()] = None, instruction: str = "",
+        fixture: Annotated[list[Path] | None, typer.Option()] = None, max_steps: int = 30):
     if not ctx.obj:
         raise typer.BadParameter("--model is required")
     with tempfile.TemporaryDirectory() as directory:
         git.Repo.clone_from(repository, directory, depth=1, **({"branch": branch} if branch else {}))
         asyncio.run(execute(ctx.obj, website, plan, output, workers, resume, secret or [], instruction,
-                            Path(directory)))
+                            Path(directory), fixture or [], max_steps))
 
 @app.command()
 def html(source: Path, output: Path,
