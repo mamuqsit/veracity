@@ -21,6 +21,7 @@ jobs:
       - uses: mamuqsit/veracity@main
         with:
           url: ${{ vars.UAT_URL }}
+          model: openai:gpt-5.6-luna
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 ```
@@ -35,6 +36,7 @@ Optional inputs are `plan` (default `uat.json`), `model` (default `openai:gpt-5.
       - uses: mamuqsit/veracity@main
         with:
           url: ${{ vars.UAT_URL }}
+          model: openai:gpt-5.6-luna
           secrets: |
             UAT_USERNAME
             UAT_PASSWORD
