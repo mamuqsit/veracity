@@ -54,14 +54,14 @@ runs:
           --output uat-output.json --repository "$GITHUB_WORKSPACE" \
           --workers "$UAT_WORKERS" --instruction "$UAT_INSTRUCTION" "${args[@]}"
         jq -e '.results | length > 0 and all(.[]; .status == "succeeded")' uat-output.json
-    - name: Generate Markdown report
+    - name: Generate HTML report
       if: ${{ always() && hashFiles('uat-output.json') != '' }}
       shell: bash
       env:
         VERACITY_PATH: ${{ github.action_path }}
       run: |
         "$VERACITY_PATH/.venv/bin/python" "$VERACITY_PATH/veracity.py" \
-          markdown uat-output.json uat-output.md --embed-images
+          html uat-output.json uat-output.html
     - name: Upload UAT results
       if: always()
       uses: actions/upload-artifact@v4
@@ -69,5 +69,5 @@ runs:
         name: veracity-uat
         path: |
           uat-output.json
-          uat-output.md
+          uat-output.html
           screenshots/

@@ -27,7 +27,7 @@ jobs:
 
 Set the repository variable `UAT_URL` and secret `OPENAI_API_KEY` under **Settings → Secrets and variables → Actions**. Commit the workflow and `uat.json`, then select **Actions → UAT → Run workflow**.
 
-The website must be reachable from the Ubuntu runner. Download `uat-output.md`, `uat-output.json`, and screenshots from the run's `veracity-uat` artifact. The Markdown report includes all recorded results and displays screenshots from the included `screenshots/` directory. The action generates the report even if tests fail. Failed or skipped tests fail the job.
+The website must be reachable from the Ubuntu runner. Download `uat-output.html`, `uat-output.json`, and screenshots from the run's `veracity-uat` artifact. Open the HTML report in a browser. It includes all recorded results and embedded screenshots in one file. The action generates the report even if tests fail. Failed or skipped tests fail the job.
 
 Optional inputs are `plan` (default `uat.json`), `model` (default `openai:gpt-5.6-luna`), `workers` (default `4`), `instruction`, and `secrets`. For login credentials, pass environment variable names, one per line:
 
@@ -79,15 +79,15 @@ uv run veracity.py --model openai:gpt-5.6-luna run \
 Tests in one group run in order with one browser profile. Groups run concurrently. Each result and its screenshots are written immediately after the test.
 Use `--resume` to run only tests missing from an existing output file.
 
-### Markdown
+### HTML report
 
 ```sh
-uv run veracity.py markdown uat-output.json uat-output.md
+uv run veracity.py html uat-output.json uat-output.html
 
-uv run veracity.py markdown uat-output.json passed.md \
+uv run veracity.py html uat-output.json passed.html \
   --status succeeded \
-  --status skipped \
-  --embed-images
+  --status skipped
 ```
 
 `--status` is repeatable and accepts `succeeded`, `skipped`, or `failed`.
+Screenshots are read from the `screenshots/` directory beside the source JSON and embedded in the report.

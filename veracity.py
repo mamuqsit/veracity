@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import tempfile
+from html import escape
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -156,22 +157,33 @@ def run(ctx: typer.Context, website: str, plan: Path, output: Annotated[Path, ty
                             Path(directory)))
 
 @app.command()
-def markdown(source: Path, output: Path, status: Annotated[list[str] | None, typer.Option()] = None,
-             embed_images: bool = False):
+def html(source: Path, output: Path,
+         status: Annotated[list[str] | None, typer.Option()] = None):
     status = status or []
     if set(status) - {"succeeded", "skipped", "failed"}:
         raise typer.BadParameter("invalid status")
-    rows = ["| Code | Status | Note | Attachments |", "| --- | --- | --- | --- |"]
+    rows = []
     for entry in json.loads(source.read_text())["results"]:
         result = Result.model_validate(entry)
         if status and result.status not in status:
             continue
-        cells = [str(getattr(result, key)).replace("|", r"\|").replace("\n", "<br>")
-                 for key in ("code", "status", "note")]
-        links = "<br>".join(f"{'!' if embed_images else ''}[{name}](screenshots/{name})" for name in result.attachments)
-        rows.append("| " + " | ".join([*cells, links]) + " |")
+        images = []
+        for name in result.attachments:
+            image = base64.b64encode((source.parent / "screenshots" / name).read_bytes()).decode()
+            images.append(f'<img alt="{escape(name)}" src="data:image/png;base64,{image}">')
+        cells = "".join(f"<td>{escape(getattr(result, key))}</td>" for key in ("code", "status", "note"))
+        rows.append(f'<tr>{cells}<td>{"".join(images)}</td></tr>')
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text("\n".join(rows) + "\n")
+    output.write_text(
+        '<!doctype html><html lang="en"><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<title>Veracity UAT report</title><style>'
+        'body{font-family:system-ui;margin:2rem}table{border-collapse:collapse;width:100%}'
+        'th,td{border:1px solid #ccc;padding:.75rem;text-align:left;vertical-align:top;white-space:pre-wrap}'
+        'img{display:block;max-width:100%;max-height:32rem;margin-bottom:.5rem}'
+        '</style><h1>Veracity UAT report</h1><table><thead><tr>'
+        '<th>Code</th><th>Status</th><th>Note</th><th>Screenshots</th>'
+        '</tr></thead><tbody>' + "\n".join(rows) + '</tbody></table></html>\n', encoding="utf-8")
 
 if __name__ == "__main__":
     app()
