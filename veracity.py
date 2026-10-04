@@ -172,7 +172,8 @@ def html(source: Path, output: Path,
         for name in result.attachments:
             image = base64.b64encode((source.parent / "screenshots" / name).read_bytes()).decode()
             images.append(f'<img alt="{escape(name)}" src="data:image/png;base64,{image}">')
-        cells = "".join(f"<td>{escape(getattr(result, key))}</td>" for key in ("code", "status", "note"))
+        cells = (f'<td>{escape(result.code)}</td><td class="{result.status}">{result.status}</td>'
+                 f'<td>{escape(result.note)}</td>')
         rows.append(f'<tr>{cells}<td>{"".join(images)}</td></tr>')
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
@@ -181,6 +182,7 @@ def html(source: Path, output: Path,
         '<title>Veracity UAT report</title><style>'
         'body{font-family:system-ui;margin:2rem}table{border-collapse:collapse;width:100%}'
         'th,td{border:1px solid #ccc;padding:.75rem;text-align:left;vertical-align:top;white-space:pre-wrap}'
+        '.succeeded{background:#dcfce7}.failed{background:#fee2e2}.skipped{background:#fef3c7}'
         'img{display:block;max-width:100%;max-height:32rem;margin-bottom:.5rem}'
         '</style><h1>Veracity UAT report</h1><table><thead><tr>'
         '<th>Code</th><th>Status</th><th>Note</th><th>Screenshots</th>'
