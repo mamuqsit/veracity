@@ -1,0 +1,7 @@
+uat.json
+uat-output.json
+screenshots/
+.playwright-cli/
+.venv/
+__pycache__/
+.ruff_cache/
