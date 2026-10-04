@@ -45,7 +45,7 @@ Optional inputs are `plan` (default `uat.json`), `model` (default `openai:gpt-5.
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
-          UAT_USERNAME: ${{ secrets.UAT_USERNAME }}
+          UAT_USERNAME: ${{ vars.UAT_USERNAME }}
           UAT_PASSWORD: ${{ secrets.UAT_PASSWORD }}
 ```
 
