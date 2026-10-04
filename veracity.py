@@ -116,6 +116,7 @@ async def execute(model: str, website: str, plan: Path, output: Path, workers: i
         async with limit:
             with tempfile.TemporaryDirectory() as directory:
                 browser = Browser(headless=True, keep_alive=True, user_data_dir=str(Path(directory) / "profile"),
+                                  chromium_sandbox=os.environ.get("GITHUB_ACTIONS") != "true",
                                   enable_default_extensions=False, allowed_domains=[website])
                 try:
                     await browser.start()
