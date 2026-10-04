@@ -24,6 +24,7 @@ jobs:
           model: openai:gpt-5.6-luna
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://api.openai.com/v1' }} # Default: OpenAI
 ```
 
 Set the repository variable `UAT_URL` and secret `OPENAI_API_KEY` under **Settings → Secrets and variables → Actions**. Commit the workflow and `uat.json`, then select **Actions → UAT → Run workflow**.
@@ -43,6 +44,7 @@ Optional inputs are `plan` (default `uat.json`), `model` (default `openai:gpt-5.
           instruction: Log in with UAT_USERNAME and UAT_PASSWORD.
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://api.openai.com/v1' }} # Default: OpenAI
           UAT_USERNAME: ${{ secrets.UAT_USERNAME }}
           UAT_PASSWORD: ${{ secrets.UAT_PASSWORD }}
 ```
