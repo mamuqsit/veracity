@@ -1,10 +1,10 @@
 # Veracity
 
-Run UAT cases against your website from GitHub Actions. The action installs all required tools.
+Run WebdriverIO UAT specs with AI actions. Veracity saves action recordings for later runs and produces screenshots, status, failure reasons, and JSON/HTML reports.
 
 ## GitHub Actions
 
-Add `.github/workflows/uat.yml` to the repository that contains `uat.json`:
+Commit your specs in `tests/uat/` and add this workflow:
 
 ```yaml
 name: UAT
@@ -21,89 +21,67 @@ jobs:
       - uses: mamuqsit/veracity@main
         with:
           url: ${{ vars.UAT_URL }}
-          model: openai:gpt-6.1-sol # Default: openai:gpt-5.6-luna
+          tests: tests/uat
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
-```
-
-Set the repository variable `UAT_URL` and secret `OPENAI_API_KEY` under **Settings → Secrets and variables → Actions**. Commit the workflow and `uat.json`, then select **Actions → UAT → Run workflow**.
-
-The website must be reachable from the Ubuntu runner. Download `uat-output.html`, `uat-output.json`, and screenshots from the run's `veracity-uat` artifact. Open the HTML report in a browser. It includes all recorded results and embedded screenshots in one file. The action generates the report even if tests fail. Failed or skipped tests fail the job.
-
-Optional inputs are `plan` (default `uat.json`), `model` (default `openai:gpt-5.6-luna`), `workers` (default `1`), `instruction`, and `secrets`. For login credentials, pass environment variable names, one per line:
-
-```yaml
-      - uses: mamuqsit/veracity@main
-        with:
-          url: ${{ vars.UAT_URL }}
-          model: openai:gpt-6.1-sol # Default: openai:gpt-5.6-luna
-          secrets: |
-            UAT_USERNAME
-            UAT_PASSWORD
-          instruction: Log in with UAT_USERNAME and UAT_PASSWORD.
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
-          UAT_USERNAME: ${{ vars.UAT_USERNAME }}
+          UAT_EMAIL: ${{ vars.UAT_EMAIL }}
           UAT_PASSWORD: ${{ secrets.UAT_PASSWORD }}
 ```
 
-For an OpenAI-compatible endpoint, also set `OPENAI_BASE_URL` in `env`.
+The website must be reachable from the runner. The action installs Node.js 22 and Veracity. WDIO installs Chrome and its driver when required. Set the `base-url` input to use a custom model API endpoint.
 
-Each test uses normal reasoning and is limited to 30 agent steps. Set `max-steps` to change the limit. If the agent does not return a valid result, the run fails. The action provides `profile.png` for image uploads. Use `fixtures` to add file paths from your repository, one per line:
+Use `.e2e.js`, `.e2e.mjs`, or `.e2e.ts` spec filenames. Specs use WDIO globals (`browser`, `$`, `expect`, `describe`, and `it`). Keep related tests in one spec to share a browser session. Specs run in separate sessions. Use relative imports for local helpers. If specs import other packages, install those packages in your workflow before you run Veracity.
 
-```yaml
-        with:
-          url: ${{ vars.UAT_URL }}
-          fixtures: |
-            tests/fixtures/teachers.xlsx
+```js
+describe('Login', () => {
+    it('opens the account page', async () => {
+        await browser.url('/login');
+        await browser.act('Log in with email {{email}} and password {{password}}', {
+            id: 'login',
+            values: { email: process.env.UAT_EMAIL, password: process.env.UAT_PASSWORD },
+        });
+        await expect(browser).toHaveUrl(expect.stringContaining('/account'));
+    });
+});
 ```
 
-Keep each UAT case focused on one behavior. Test uploads, removals, validation, and saved changes separately.
+`act()` performs actions. Use assertions to check the outcome. Use placeholder values for credentials so the model does not receive them in the instruction. Tests can read environment variables and upload files with standard WDIO commands.
 
-## Local CLI
+Use stable spec paths, test titles, and action IDs. WDIO records each `act()` call. Later runs replay its commands. Changed instructions record new commands. The action restores recordings before each run and saves updates even when tests fail. GitHub cache scope, retention, and eviction rules apply. Download the recordings from the artifact to keep a permanent copy. You can also commit them in `.veracity/act/` after you remove that path from `.gitignore`.
 
-For local use, install Python 3.12, uv, and Git. Clone this repository, then run `uv sync` and `uv run browser-use install`. Set `OPENAI_API_KEY` before you generate or run tests.
+Optional inputs:
 
-### Generate
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `provider` | `openai` | Model provider. The OpenAI provider is installed. |
+| `model` | `gpt-5.6-luna` | Model name. |
+| `base-url` | Provider default | Custom model API endpoint. |
+| `workers` | `1` | Concurrent spec workers. |
+| `cache-dir` | `.veracity/act` | Recording directory in the checked-out repository. |
+| `cache` | `write` | `write` replays, records, and repairs; `locked` replays without model calls; `heal` writes repairs to the output directory; `off` disables recordings. |
+
+`browser.extract()` reads live data and calls the model on each run. Use standard assertions when you need runs without model calls. Other model providers require their LangChain package.
+
+Download the `veracity-uat` artifact for `veracity-output/uat-output.json`, `uat-output.html`, screenshots, WDIO logs, AI evidence, and recordings. The HTML report embeds screenshots. Each result has `code`, `status` (`succeeded`, `failed`, or `skipped`), `note`, and `attachments`. Passed tests have an empty note. Assertion and action errors supply failure reasons. Skipped tests have no screenshot. Failed setup hooks appear as failed results. Failed or skipped tests, zero results, and runner errors fail the job.
+
+## Local use
+
+Install Node.js 22.19 or later, then run:
 
 ```sh
-uv run veracity.py --model openai:gpt-5.6-luna audit \
-  https://github.com/A4i-tech/Shiksha-Copilot uat.json json \
-  --branch a4i/staging \
-  --instruction "Audit functionality in shiksha-frontend for 3 roles - teacher, power teacher, and admin. FYI: shiksha-backend is run with devtools enabled, and during execution stage you will be given credentials to a superuser account. Skip presentation generation."
+npm ci
+export OPENAI_API_KEY=...
+node veracity.js --url http://localhost:3000 --tests tests/uat
 ```
 
-### Run
+Use `--provider`, `--model`, `--base-url`, `--workers`, `--cache-dir`, and `--cache` to set the same options as the action. Use `--output path/to/run` to change the report directory. The output directory must be empty for each run. Keep the cache directory between runs.
 
-```sh
-export SU_PHONE=6000000000 SU_PIN=1234
+Specs define the tests; recordings define the commands used by AI actions. See the [WDIO AI Service documentation](https://webdriver.io/docs/ai-service) for action, extraction, and cache options.
 
-uv run veracity.py --model openai:gpt-5.6-luna run \
-  http://localhost:4200 uat.json \
-  --output uat-output.json \
-  --repository https://github.com/A4i-tech/Shiksha-Copilot \
-  --branch a4i/staging \
-  --workers 1 \
-  --secret SU_PHONE \
-  --secret SU_PIN \
-  --instruction "Superuser account credential: SU_PHONE (PIN: SU_PIN). Create disposable teacher, power teacher, and admin user accounts and test flows. shiksha-backend is hosted on https://localhost:8080/api."
-```
+## Tests
 
-Tests in one group run in order with one browser profile. Groups run concurrently. Each result and its screenshots are written immediately after the test.
-Use `--resume` to run only tests missing from an existing output file.
-Use `--fixture fixtures/profile.png` to provide an upload file locally. `--fixture` is repeatable. Use `--max-steps` to change the default limit of 30 steps per test.
+`npm test` checks login, action recording, structured extraction, cached replay, and report output in Chrome against a local HTTP server. The first run records the login action. The second run uses locked mode, which requires the recorded action. Both runs use the model for extraction.
 
-### HTML report
+CI runs this test on pushes, pull requests, and manual runs. Set the repository secret `OPENAI_API_KEY`. Optional repository variables `VERACITY_PROVIDER`, `VERACITY_MODEL`, and `VERACITY_BASE_URL` select the provider, model, and endpoint.
 
-```sh
-uv run veracity.py html uat-output.json uat-output.html
-
-uv run veracity.py html uat-output.json passed.html \
-  --status succeeded \
-  --status skipped
-```
-
-`--status` is repeatable and accepts `succeeded`, `skipped`, or `failed`.
-Screenshots are read from the `screenshots/` directory beside the source JSON and embedded in the report.
+CI uploads reports, screenshots, and runner logs in the `e2e-results` artifact, including failed runs. To run locally, set the same environment variables and run `npm test`.

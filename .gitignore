@@ -1,7 +1,7 @@
-uat.json
-uat-output.json
-screenshots/
-.playwright-cli/
-.venv/
-__pycache__/
-.ruff_cache/
+node_modules/
+veracity-output/
+.veracity/
+.env
+.env.*
+!.env.example
+*.log

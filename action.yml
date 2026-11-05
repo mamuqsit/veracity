@@ -1,87 +1,72 @@
 name: Veracity UAT
-description: Run a UAT plan against a website and upload results and screenshots.
+description: Run WebdriverIO UAT specs with cached AI actions and upload reports.
 inputs:
   url:
     description: Website URL reachable from the runner.
     required: true
-  plan:
-    description: Path to the UAT plan in the checked-out repository.
-    default: uat.json
+  tests:
+    description: Directory with .e2e.js, .e2e.mjs, or .e2e.ts specs.
+    required: true
+  provider:
+    description: AI model provider.
+    default: openai
   model:
-    description: OpenAI model name.
-    default: openai:gpt-5.6-luna
+    description: AI model name.
+    default: gpt-5.6-luna
+  base-url:
+    description: Custom model API endpoint.
   workers:
-    description: Number of concurrent test groups.
+    description: Number of concurrent spec workers.
     default: '1'
-  secrets:
-    description: Environment variable names to pass to the agent, one per line.
-    default: ''
-  instruction:
-    description: Additional instructions for the tests.
-    default: ''
-  max-steps:
-    description: Maximum agent steps per test.
-    default: '30'
-  fixtures:
-    description: Additional upload file paths in the checked-out repository, one per line.
-    default: ''
+  cache-dir:
+    description: Directory for AI action recordings, relative to the workspace.
+    default: .veracity/act
+  cache:
+    description: AI cache mode (write, heal, locked, or off).
+    default: write
 runs:
   using: composite
   steps:
-    - uses: astral-sh/setup-uv@v6
+    - uses: actions/setup-node@v4
       with:
-        python-version: '3.12'
-    - name: Install Veracity and Chromium
+        node-version: '22'
+    - name: Install Veracity
       shell: bash
       env:
         VERACITY_PATH: ${{ github.action_path }}
-      run: |
-        uv sync --project "$VERACITY_PATH" --locked --no-dev
-        "$VERACITY_PATH/.venv/bin/browser-use" install
+      run: npm ci --prefix "$VERACITY_PATH" --omit=dev
+    - name: Restore action recordings
+      id: recordings
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ inputs.cache-dir }}
+        key: veracity-act-${{ runner.os }}-${{ inputs.tests }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: veracity-act-${{ runner.os }}-${{ inputs.tests }}-
     - name: Run UAT
       shell: bash
       env:
         VERACITY_PATH: ${{ github.action_path }}
         UAT_URL: ${{ inputs.url }}
-        UAT_PLAN: ${{ inputs.plan }}
+        UAT_TESTS: ${{ inputs.tests }}
+        UAT_PROVIDER: ${{ inputs.provider }}
+        UAT_BASE_URL: ${{ inputs.base-url }}
         UAT_MODEL: ${{ inputs.model }}
         UAT_WORKERS: ${{ inputs.workers }}
-        UAT_SECRETS: ${{ inputs.secrets }}
-        UAT_INSTRUCTION: ${{ inputs.instruction }}
-        UAT_MAX_STEPS: ${{ inputs.max-steps }}
-        UAT_FIXTURES: ${{ inputs.fixtures }}
-      run: |
-        args=(--fixture "$VERACITY_PATH/fixtures/profile.png")
-        while IFS= read -r name; do
-          if [[ -n "$name" ]]; then
-            args+=(--secret "$name")
-          fi
-        done <<< "$UAT_SECRETS"
-        while IFS= read -r path; do
-          if [[ -n "$path" ]]; then
-            args+=(--fixture "$path")
-          fi
-        done <<< "$UAT_FIXTURES"
-        "$VERACITY_PATH/.venv/bin/python" "$VERACITY_PATH/veracity.py" \
-          --model "$UAT_MODEL" run "$UAT_URL" "$UAT_PLAN" \
-          --output uat-output.json --repository "$GITHUB_WORKSPACE" \
-          --workers "$UAT_WORKERS" --max-steps "$UAT_MAX_STEPS" \
-          --instruction "$UAT_INSTRUCTION" "${args[@]}"
-        jq -e '.results | length > 0 and all(.[]; .status == "succeeded")' uat-output.json
-    - name: Generate HTML report
-      if: ${{ always() && hashFiles('uat-output.json') != '' }}
-      shell: bash
-      env:
-        VERACITY_PATH: ${{ github.action_path }}
-      run: |
-        "$VERACITY_PATH/.venv/bin/python" "$VERACITY_PATH/veracity.py" \
-          html uat-output.json uat-output.html
+        UAT_CACHE_DIR: ${{ inputs.cache-dir }}
+        UAT_CACHE: ${{ inputs.cache }}
+      run: node "$VERACITY_PATH/veracity.js" --url "$UAT_URL" --tests "$UAT_TESTS" --provider "$UAT_PROVIDER" --model "$UAT_MODEL" --base-url "$UAT_BASE_URL" --workers "$UAT_WORKERS" --cache-dir "$UAT_CACHE_DIR" --cache "$UAT_CACHE"
+    - name: Save action recordings
+      if: ${{ always() && steps.recordings.outcome == 'success' && inputs.cache == 'write' }}
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ inputs.cache-dir }}
+        key: ${{ steps.recordings.outputs.cache-primary-key }}
     - name: Upload UAT results
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: veracity-uat
+        include-hidden-files: true
         path: |
-          uat-output.json
-          uat-output.html
-          screenshots/
+          veracity-output/
+          ${{ inputs.cache-dir }}/
